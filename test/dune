@@ -1,0 +1,7 @@
+(test
+ (name test_wisp)
+ (libraries eio_main alcotest))
+
+(test
+ (name test_http)
+ (libraries wisp eio_main alcotest ppx_deriving))

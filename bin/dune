@@ -1,0 +1,4 @@
+(executable
+ (public_name wisp)
+ (name main)
+ (libraries wisp eio_main))
