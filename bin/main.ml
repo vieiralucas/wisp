@@ -1,19 +1,12 @@
 let handler socket _client_addr =
-  let request = Wisp.Http.parse socket in
-  match request with
-  | Error (Wisp.Http.InvalidMethod method_name) ->
-    Printf.eprintf "Invalid HTTP method: %s\n%!" method_name;
-    Eio.Flow.close socket
-  | Ok req ->
-    let body = Wisp.Http.str_body req in
-    let response =
-      Printf.sprintf
-        "HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s"
-        (String.length body)
-        body
-    in
-    Eio.Flow.copy_string response socket;
-    Eio.Flow.close socket
+  let response =
+    Printf.sprintf
+      "HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s"
+      (String.length "Hello World!")
+      "Hello World!"
+  in
+  Eio.Flow.copy_string response socket;
+  Eio.Flow.close socket
 ;;
 
 let rec server sw listener =

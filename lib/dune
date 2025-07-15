@@ -1,5 +1,3 @@
 (library
  (name wisp)
- (libraries eio_main ppx_deriving uri)
- (preprocess
-  (pps ppx_deriving.show ppx_deriving.eq)))
+ (libraries eio_main))
