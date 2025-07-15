@@ -20,6 +20,7 @@ type 'a result =
 type 'a partial =
   { run : input -> 'a result
   ; step : input -> 'a step_result
+  ; base_off : int
   }
 
 and 'a step_result =
@@ -71,11 +72,11 @@ let string (str : string) : string t =
     else Error (Printf.sprintf "Expected '%s'" str, off)
   in
   let step input =
-    let rec aux seen_len { buffer; off } =
+    let rec aux seen_len base_off { buffer; off } =
       let pending_str =
         String.sub str seen_len (String.length str - seen_len)
       in
-      let str_len = String.length pending_str - seen_len in
+      let str_len = String.length pending_str in
       let input_len = Bigstringaf.length buffer - off in
       if input_len >= str_len
       then
@@ -83,13 +84,24 @@ let string (str : string) : string t =
         then (
           let new_input = { buffer; off = off + str_len } in
           Done (Ok (str, new_input)))
-        else Done (Error (Printf.sprintf "Expected '%s'" pending_str, off))
+        else Done (Error (Printf.sprintf "Expected '%s'" str, off))
       else (
-        let partial_run = run (seen_len + input_len) in
-        let partial_step = aux (seen_len + input_len) in
-        Partial { run = partial_run; step = partial_step })
+        let available_str = Bigstringaf.substring buffer ~off ~len:input_len in
+        let expected_prefix = String.sub pending_str 0 input_len in
+        if available_str = expected_prefix
+        then (
+          let partial_run = run (seen_len + input_len) in
+          let partial_step =
+            aux (seen_len + input_len) (base_off + input_len)
+          in
+          Partial
+            { run = partial_run
+            ; step = partial_step
+            ; base_off = base_off + input_len
+            })
+        else Done (Error (Printf.sprintf "Expected '%s'" str, off)))
     in
-    aux 0 input
+    aux 0 0 input
   in
   { run = run 0; step }
 ;;
@@ -111,8 +123,8 @@ let rec run_partial
   | Done result -> result
   | Partial partial ->
     (match get_more () with
-     | None -> Error ("Not enough input", input.off)
-     | Some input -> run_partial partial input get_more)
+     | None -> Error ("Not enough input", partial.base_off + input.off)
+     | Some more_input -> run_partial partial more_input get_more)
 ;;
 
 let run (t : 'a t) (input : input) (get_more : unit -> input option) : 'a result
