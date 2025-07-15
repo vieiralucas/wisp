@@ -1,3 +1,4 @@
 (library
  (name wisp)
- (libraries eio_main))
+ (libraries eio_main)
+ (instrumentation (backend bisect_ppx)))
