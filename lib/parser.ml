@@ -155,3 +155,66 @@ let remaining_string (input : input) : string =
   then ""
   else Bigstringaf.substring input.buffer ~off:input.off ~len
 ;;
+
+let combine (pa : 'a t) (pb : 'b t) : ('a * 'b) t =
+  let rec build_partial_b a (partial_b : 'b partial) =
+    Partial
+      { run =
+          (fun input ->
+            match partial_b.run input with
+            | Ok (b, new_input) -> Ok ((a, b), new_input)
+            | Error (msg, off) -> Error (msg, off))
+      ; step =
+          (fun input ->
+            match partial_b.step input with
+            | Done (Error (msg, off)) -> Done (Error (msg, off))
+            | Done (Ok (b, new_input)) -> Done (Ok ((a, b), new_input))
+            | Partial partial_b -> build_partial_b a partial_b)
+      ; base_off = partial_b.base_off
+      }
+  in
+  let rec build_partial_a (partial_a : 'a partial) =
+    Partial
+      { run =
+          (fun input ->
+            match partial_a.run input with
+            | Ok (a, new_input) ->
+              (match pb.run new_input with
+               | Ok (b, final_input) -> Ok ((a, b), final_input)
+               | Error (msg, off) -> Error (msg, off))
+            | Error (msg, off) -> Error (msg, off))
+      ; step =
+          (fun input ->
+            match partial_a.step input with
+            | Done (Error (msg, off)) -> Done (Error (msg, off))
+            | Done (Ok (a, new_input)) ->
+              (match pb.step new_input with
+               | Done (Error (msg, off)) -> Done (Error (msg, off))
+               | Done (Ok (b, final_input)) -> Done (Ok ((a, b), final_input))
+               | Partial partial_b -> build_partial_b a partial_b)
+            | Partial partial_a -> build_partial_a partial_a)
+      ; base_off = partial_a.base_off
+      }
+  in
+  { run =
+      (fun input ->
+        match pa.run input with
+        | Ok (a, new_input) ->
+          (match pb.run new_input with
+           | Ok (b, final_input) -> Ok ((a, b), final_input)
+           | Error (msg, off) -> Error (msg, off))
+        | Error (msg, off) -> Error (msg, off))
+  ; step =
+      (fun input ->
+        match pa.step input with
+        | Done (Error (msg, off)) -> Done (Error (msg, off))
+        | Done (Ok (a, new_input)) ->
+          (match pb.step new_input with
+           | Done (Error (msg, off)) -> Done (Error (msg, off))
+           | Done (Ok (b, final_input)) -> Done (Ok ((a, b), final_input))
+           | Partial partial_b -> build_partial_b a partial_b)
+        | Partial partial_a -> build_partial_a partial_a)
+  }
+;;
+
+let ( <*> ) = combine

@@ -27,3 +27,5 @@ val run_partial : 'a partial -> input -> (unit -> input option) -> 'a result
 val run_once : 'a t -> input -> 'a result
 val run_once_partial : 'a partial -> input -> 'a result
 val remaining_string : input -> string
+val combine : 'a t -> 'b t -> ('a * 'b) t
+val ( <*> ) : 'a t -> 'b t -> ('a * 'b) t

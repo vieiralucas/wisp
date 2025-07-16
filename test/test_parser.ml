@@ -791,5 +791,28 @@ let () =
                     | Parser.Error (msg, off) ->
                       Printf.sprintf "Error (%s, %d)" msg off)))
         ] )
+    ; ( "combine"
+      , [ test_case "combine char" `Quick (fun () ->
+            let pa = Parser.char 'a' in
+            let pb = Parser.char 'b' in
+            let p = Parser.combine pa pb in
+            let input = Parser.input_of_string "ab" in
+            let r = Parser.run p input (fun _ -> Option.none) in
+            match r with
+            | Parser.Ok ((a, b), remaining) ->
+              check
+                string
+                "remaining input"
+                ""
+                (Parser.remaining_string remaining);
+              check char "first char" 'a' a;
+              check char "second char" 'b' b
+            | Parser.Error (msg, off) ->
+              fail
+                (Printf.sprintf
+                   "Expected Ok with ('a', 'b') but got Error: %s at offset %d"
+                   msg
+                   off))
+        ] )
     ]
 ;;
