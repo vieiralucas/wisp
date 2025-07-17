@@ -6,6 +6,7 @@ let create_input str = Parser.input_of_string str
 let ( <*> ) = Parser.( <*> )
 let ( <* ) = Parser.( <* )
 let ( *> ) = Parser.( *> )
+let ( <|> ) = Parser.( <|> )
 
 let create_bigstring_input str =
   Parser.input_of_bigstring
@@ -943,6 +944,457 @@ let test_right_operator_recursive_partial_error () =
       msg
 ;;
 
+let test_choice_operator () =
+  (* Test <|> operator - tries first parser, then second if first fails *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "hello" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok (result, remaining) ->
+    check string "choice operator first success" "hello" result;
+    check
+      string
+      "choice operator first remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_second () =
+  (* Test <|> operator when first parser fails, second succeeds *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "world" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok (result, remaining) ->
+    check string "choice operator second success" "world" result;
+    check
+      string
+      "choice operator second remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_both_fail () =
+  (* Test <|> operator when both parsers fail *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "xyz" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    (* Should report the error from the first parser *)
+    check
+      string
+      "choice operator both fail"
+      "Expected 'hello' or Expected 'world'"
+      msg
+;;
+
+let test_choice_operator_partial_first () =
+  (* Test <|> operator with partial input for first parser *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "hel" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check string "choice operator partial first" "Not enough input" msg
+;;
+
+let test_choice_operator_partial_second () =
+  (* Test <|> operator with partial input for second parser *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "wor" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check string "choice operator partial second" "Not enough input" msg
+;;
+
+let test_choice_operator_streaming_first () =
+  (* Test <|> operator with streaming input for first parser *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "hel" in
+  let chunks = ref [ "lo" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok (result, remaining) ->
+    check string "choice operator streaming first" "hello" result;
+    check
+      string
+      "choice operator streaming first remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_streaming_second () =
+  (* Test <|> operator with streaming input for second parser *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "wor" in
+  let chunks = ref [ "ld" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok (result, remaining) ->
+    check string "choice operator streaming second" "world" result;
+    check
+      string
+      "choice operator streaming second remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_streaming_both_fail () =
+  (* Test <|> operator with streaming input where both parsers fail *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "hel" in
+  let chunks = ref [ "xy" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check
+      string
+      "choice operator streaming both fail"
+      "Expected 'hello' or Expected 'world'"
+      msg
+;;
+
+let test_choice_operator_with_chars () =
+  (* Test <|> operator with char parsers *)
+  let parser = Parser.char 'a' <|> Parser.char 'b' in
+  let input = create_input "a" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok (result, remaining) ->
+    check char "choice operator char first" 'a' result;
+    check
+      string
+      "choice operator char first remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_with_chars_second () =
+  (* Test <|> operator with char parsers, second succeeds *)
+  let parser = Parser.char 'a' <|> Parser.char 'b' in
+  let input = create_input "b" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok (result, remaining) ->
+    check char "choice operator char second" 'b' result;
+    check
+      string
+      "choice operator char second remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_chaining () =
+  (* Test chaining multiple <|> operators *)
+  let parser =
+    Parser.string "GET" <|> Parser.string "POST" <|> Parser.string "PUT"
+  in
+  let input = create_input "POST" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok (result, remaining) ->
+    check string "choice operator chaining" "POST" result;
+    check
+      string
+      "choice operator chaining remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_with_combine () =
+  (* Test <|> operator combined with <*> operator *)
+  let parser =
+    Parser.string "GET"
+    <|> Parser.string "POST"
+    <*> Parser.char ' ' *> Parser.string "/api"
+  in
+  let input = create_input "POST /api" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok ((method_, path), remaining) ->
+    check string "choice with combine method" "POST" method_;
+    check string "choice with combine path" "/api" path;
+    check
+      string
+      "choice with combine remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_empty_input () =
+  (* Test <|> operator with empty input *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check string "choice operator empty input" "Not enough input" msg
+;;
+
+let test_choice_operator_streaming_no_more_input () =
+  (* Test <|> operator with streaming where get_more returns None *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "hel" in
+  let get_more () = None in
+  match Parser.run parser input get_more with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check
+      string
+      "choice operator streaming no more input"
+      "Not enough input"
+      msg
+;;
+
+let test_choice_operator_partial_mismatch_first () =
+  (* Test <|> operator where first parser partially matches then fails *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "helx" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check
+      string
+      "choice operator partial mismatch first"
+      "Expected 'hello' or Expected 'world'"
+      msg
+;;
+
+let test_choice_operator_partial_mismatch_second () =
+  (* Test <|> operator where second parser partially matches then fails *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "worx" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check
+      string
+      "choice operator partial mismatch second"
+      "Expected 'hello' or Expected 'world'"
+      msg
+;;
+
+let test_choice_operator_build_partial_success () =
+  (* Test the uncovered branch where build_partial gets a success from the second parser *)
+  (* This tests the case where p1_err is Some and the second parser succeeds *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "wor" in
+  let chunks = ref [ "ld" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok (result, remaining) ->
+    check string "choice operator build partial success" "world" result;
+    check
+      string
+      "choice operator build partial success remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_build_partial_error () =
+  (* Test the uncovered branch where build_partial gets an error from the second parser *)
+  (* This tests the case where p1_err is Some and the second parser fails *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "wor" in
+  let chunks = ref [ "xy" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check
+      string
+      "choice operator build partial error"
+      "Expected 'hello' or Expected 'world'"
+      msg
+;;
+
+let test_choice_operator_build_partial_recursive () =
+  (* Test the uncovered branch where build_partial gets a Partial from the second parser *)
+  (* This tests the case where p1_err is Some and the second parser returns Partial *)
+  let parser = Parser.string "hello" <|> Parser.string "worldwide" in
+  let input = create_input "wor" in
+  let chunks = ref [ "ld"; "wide" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok (result, remaining) ->
+    check string "choice operator build partial recursive" "worldwide" result;
+    check
+      string
+      "choice operator build partial recursive remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_build_partial_recursive_error () =
+  (* Test the uncovered branch where build_partial gets a Partial then error from the second parser *)
+  (* This tests the case where p1_err is Some, second parser returns Partial, then fails *)
+  let parser = Parser.string "hello" <|> Parser.string "worldwide" in
+  let input = create_input "wor" in
+  let chunks = ref [ "ld"; "wrong" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check
+      string
+      "choice operator build partial recursive error"
+      "Expected 'hello' or Expected 'worldwide'"
+      msg
+;;
+
+let test_choice_operator_build_partial_recursive_success () =
+  (* Test the uncovered branch where build_partial gets a Partial then success from the second parser *)
+  (* This tests the case where p1_err is None, first parser returns Partial, then second succeeds *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "hel" in
+  let chunks = ref [ "lo" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok (result, remaining) ->
+    check
+      string
+      "choice operator build partial recursive success"
+      "hello"
+      result;
+    check
+      string
+      "choice operator build partial recursive success remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_build_partial_none_success () =
+  (* Test the uncovered branch where build_partial gets a success from the second parser when p1_err is None *)
+  (* This tests the case where p1_err is None and the second parser succeeds *)
+  let parser = Parser.string "hello" <|> Parser.string "world" in
+  let input = create_input "wor" in
+  let chunks = ref [ "ld" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok (result, remaining) ->
+    check string "choice operator build partial none success" "world" result;
+    check
+      string
+      "choice operator build partial none success remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_first_partial_then_second_succeeds () =
+  let parser = Parser.string "hello" <|> Parser.string "hella" in
+  let input = create_input "hell" in
+  let chunks = ref [ "a" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok (result, remaining) ->
+    check
+      string
+      "choice operator both partial then second succeeds"
+      "hella"
+      result;
+    check
+      string
+      "choice operator both partial then second succeeds remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_choice_operator_first_partial_then_second_partial_and_succeeds () =
+  let parser = Parser.string "hello" <|> Parser.string "hellal" in
+  let input = create_input "hell" in
+  let chunks = ref [ "a"; "l" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok (result, remaining) ->
+    check
+      string
+      "choice operator both partial then second succeeds"
+      "hellal"
+      result;
+    check
+      string
+      "choice operator both partial then second succeeds remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
 (* Test suite *)
 let () =
   run
@@ -1082,6 +1534,96 @@ let () =
             test_right_operator_recursive_partial_error
         ; test_case "operator chaining" `Quick test_operator_chaining
         ; test_case "operator precedence" `Quick test_operator_precedence
+        ; test_case "choice operator" `Quick test_choice_operator
+        ; test_case "choice operator second" `Quick test_choice_operator_second
+        ; test_case
+            "choice operator both fail"
+            `Quick
+            test_choice_operator_both_fail
+        ; test_case
+            "choice operator partial first"
+            `Quick
+            test_choice_operator_partial_first
+        ; test_case
+            "choice operator partial second"
+            `Quick
+            test_choice_operator_partial_second
+        ; test_case
+            "choice operator streaming first"
+            `Quick
+            test_choice_operator_streaming_first
+        ; test_case
+            "choice operator streaming second"
+            `Quick
+            test_choice_operator_streaming_second
+        ; test_case
+            "choice operator streaming both fail"
+            `Quick
+            test_choice_operator_streaming_both_fail
+        ; test_case
+            "choice operator with chars"
+            `Quick
+            test_choice_operator_with_chars
+        ; test_case
+            "choice operator with chars second"
+            `Quick
+            test_choice_operator_with_chars_second
+        ; test_case
+            "choice operator chaining"
+            `Quick
+            test_choice_operator_chaining
+        ; test_case
+            "choice with combine"
+            `Quick
+            test_choice_operator_with_combine
+        ; test_case
+            "choice operator empty input"
+            `Quick
+            test_choice_operator_empty_input
+        ; test_case
+            "choice operator streaming no more input"
+            `Quick
+            test_choice_operator_streaming_no_more_input
+        ; test_case
+            "choice operator partial mismatch first"
+            `Quick
+            test_choice_operator_partial_mismatch_first
+        ; test_case
+            "choice operator partial mismatch second"
+            `Quick
+            test_choice_operator_partial_mismatch_second
+        ; test_case
+            "choice operator build partial success"
+            `Quick
+            test_choice_operator_build_partial_success
+        ; test_case
+            "choice operator build partial error"
+            `Quick
+            test_choice_operator_build_partial_error
+        ; test_case
+            "choice operator build partial recursive"
+            `Quick
+            test_choice_operator_build_partial_recursive
+        ; test_case
+            "choice operator build partial recursive error"
+            `Quick
+            test_choice_operator_build_partial_recursive_error
+        ; test_case
+            "choice operator build partial recursive success"
+            `Quick
+            test_choice_operator_build_partial_recursive_success
+        ; test_case
+            "choice operator build partial none success"
+            `Quick
+            test_choice_operator_build_partial_none_success
+        ; test_case
+            "choice operator first partial then second succeeds"
+            `Quick
+            test_choice_operator_first_partial_then_second_succeeds
+        ; test_case
+            "choice operator first partial then second partial and succeeds"
+            `Quick
+            test_choice_operator_first_partial_then_second_partial_and_succeeds
         ] )
     ]
 ;;

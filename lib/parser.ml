@@ -193,3 +193,64 @@ let ( *> ) (pa : 'a t) (pb : 'b t) : 'b t =
           Partial { step = step partial; base_off = partial.base_off })
   }
 ;;
+
+let concat_input (input1 : input) (input2 : input) : input =
+  let result =
+    Bigstringaf.create
+      (Bigstringaf.length input1.buffer + Bigstringaf.length input2.buffer)
+  in
+  Bigstringaf.blit
+    input1.buffer
+    ~src_off:0
+    result
+    ~dst_off:0
+    ~len:(Bigstringaf.length input1.buffer);
+  Bigstringaf.blit
+    input2.buffer
+    ~src_off:0
+    result
+    ~dst_off:(Bigstringaf.length input1.buffer)
+    ~len:(Bigstringaf.length input2.buffer);
+  { buffer = result; off = input1.off }
+;;
+
+let ( <|> ) (p1 : 'a t) (p2 : 'a t) : 'a t =
+  let rec build_partial
+            (p1_input : input)
+            (p1_err : string option)
+            (partial : 'a partial)
+    =
+    Partial
+      { step =
+          (fun input ->
+            let next_input = concat_input p1_input input in
+            match partial.step input with
+            | Done (Ok (x, new_input)) -> Done (Ok (x, new_input))
+            | Done (Error (msg, off)) ->
+              (match p1_err with
+               | Some msg1 -> Done (Error (msg1 ^ " or " ^ msg, off))
+               | None ->
+                 let p1_err = Some msg in
+                 (match p2.step next_input with
+                  | Done (Ok (x, new_input)) -> Done (Ok (x, new_input))
+                  | Done (Error (msg2, _)) ->
+                    Done (Error (msg ^ " or " ^ msg2, off))
+                  | Partial partial_2 ->
+                    build_partial next_input p1_err partial_2))
+            | Partial partial -> build_partial next_input p1_err partial)
+      ; base_off = partial.base_off
+      }
+  in
+  let step input =
+    match p1.step input with
+    | Done (Ok (x, new_input)) -> Done (Ok (x, new_input))
+    | Done (Error (msg, off)) ->
+      let p1_err = Some msg in
+      (match p2.step input with
+       | Done (Ok (x, new_input)) -> Done (Ok (x, new_input))
+       | Done (Error (msg2, _)) -> Done (Error (msg ^ " or " ^ msg2, off))
+       | Partial partial_2 -> build_partial input p1_err partial_2)
+    | Partial partial_1 -> build_partial input None partial_1
+  in
+  { step }
+;;

@@ -25,3 +25,4 @@ val remaining_string : input -> string
 val ( <*> ) : 'a t -> 'b t -> ('a * 'b) t
 val ( <* ) : 'a t -> 'b t -> 'a t
 val ( *> ) : 'a t -> 'b t -> 'b t
+val ( <|> ) : 'a t -> 'a t -> 'a t
