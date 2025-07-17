@@ -1,3 +1,7 @@
 (test
  (name test_parser)
  (libraries wisp alcotest))
+
+(test
+ (name test_http)
+ (libraries wisp alcotest))

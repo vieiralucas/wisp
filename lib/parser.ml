@@ -254,3 +254,122 @@ let ( <|> ) (p1 : 'a t) (p2 : 'a t) : 'a t =
   in
   { step }
 ;;
+
+let map (f : 'a -> 'b) (p : 'a t) : 'b t =
+  let rec step (partial : 'a partial) input =
+    match partial.step input with
+    | Done (Error (msg, off)) -> Done (Error (msg, off))
+    | Done (Ok (x, new_input)) -> Done (Ok (f x, new_input))
+    | Partial partial ->
+      Partial { step = step partial; base_off = partial.base_off }
+  in
+  { step =
+      (fun input ->
+        match p.step input with
+        | Done (Error (msg, off)) -> Done (Error (msg, off))
+        | Done (Ok (x, new_input)) -> Done (Ok (f x, new_input))
+        | Partial partial ->
+          Partial { step = step partial; base_off = partial.base_off })
+  }
+;;
+
+let take_while (f : char -> bool) : string t =
+  let step input =
+    let rec aux acc { buffer; off } =
+      if off < Bigstringaf.length buffer && f (Bigstringaf.get buffer off)
+      then
+        aux
+          (acc ^ String.make 1 (Bigstringaf.get buffer off))
+          { buffer; off = off + 1 }
+      else Done (Ok (acc, { buffer; off }))
+    in
+    aux "" input
+  in
+  { step }
+;;
+
+let fail (msg : string * int) : 'a t =
+  let step _input = Done (Error msg) in
+  { step }
+;;
+
+let bind (f : 'a -> 'b t) (a : 'a t) : 'b t =
+  let btt = map f a in
+  let rec run_b_partial (partial : 'b partial) input =
+    match partial.step input with
+    | Done (Error (msg, off)) -> Done (Error (msg, off))
+    | Done (Ok (b, input)) -> Done (Ok (b, input))
+    | Partial partial ->
+      Partial { step = run_b_partial partial; base_off = partial.base_off }
+  in
+  let rec run_bt_partial (partial : 'b t partial) input =
+    match partial.step input with
+    | Done (Error (msg, off)) -> Done (Error (msg, off))
+    | Done (Ok (bt, input)) ->
+      (match bt.step input with
+       | Done (Error (msg, off)) -> Done (Error (msg, off))
+       | Done (Ok (result, new_input)) -> Done (Ok (result, new_input))
+       | Partial partial ->
+         Partial { step = run_b_partial partial; base_off = partial.base_off })
+    | Partial partial ->
+      Partial { step = run_bt_partial partial; base_off = partial.base_off }
+  in
+  let step input =
+    match btt.step input with
+    | Done (Error (msg, off)) -> Done (Error (msg, off))
+    | Done (Ok (bt, input)) ->
+      (match bt.step input with
+       | Done (Error (msg, off)) -> Done (Error (msg, off))
+       | Done (Ok (result, new_input)) -> Done (Ok (result, new_input))
+       | Partial partial ->
+         Partial { step = run_b_partial partial; base_off = partial.base_off })
+    | Partial partial ->
+      Partial { step = run_bt_partial partial; base_off = partial.base_off }
+  in
+  { step }
+;;
+
+let take_while1 (f : char -> bool) : string t =
+  take_while f
+  |> bind (fun acc ->
+    if String.length acc > 0
+    then return acc
+    else fail ("Expected at least one character", 0))
+;;
+
+let optional (p : 'a t) : 'a option t =
+  let rec run_partial (partial : 'a partial) input =
+    match partial.step input with
+    | Done (Ok (x, new_input)) -> Done (Ok (Some x, new_input))
+    | Done (Error _) -> Done (Ok (None, input))
+    | Partial partial ->
+      Partial { step = run_partial partial; base_off = partial.base_off }
+  in
+  let step input =
+    match p.step input with
+    | Done (Ok (x, new_input)) -> Done (Ok (Some x, new_input))
+    | Done (Error _) -> Done (Ok (None, input))
+    | Partial partial ->
+      Partial { step = run_partial partial; base_off = partial.base_off }
+  in
+  { step }
+;;
+
+let many (p : 'a t) : 'a list t =
+  let rec run_partial (acc : 'a list) (partial : 'a partial) (input : input)
+    : 'a list step_result
+    =
+    match partial.step input with
+    | Done (Ok (x, new_input)) -> step (x :: acc) new_input
+    | Done (Error _) -> Done (Ok (List.rev acc, input))
+    | Partial partial ->
+      Partial { step = run_partial acc partial; base_off = partial.base_off }
+  and step acc input =
+    match p.step input with
+    | Done (Ok (x, new_input)) -> step (x :: acc) new_input
+    | Done (Error _) -> Done (Ok (List.rev acc, input))
+    | Partial partial ->
+      Partial { step = run_partial [] partial; base_off = partial.base_off }
+  in
+  { step = step [] }
+;;
