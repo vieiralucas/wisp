@@ -22,5 +22,6 @@ val char : char -> char t
 val string : string -> string t
 val run : 'a t -> input -> (unit -> input option) -> 'a result
 val remaining_string : input -> string
-val combine : 'a t -> 'b t -> ('a * 'b) t
 val ( <*> ) : 'a t -> 'b t -> ('a * 'b) t
+val ( <* ) : 'a t -> 'b t -> 'a t
+val ( *> ) : 'a t -> 'b t -> 'b t

@@ -116,7 +116,7 @@ let remaining_string (input : input) : string =
   else Bigstringaf.substring input.buffer ~off:input.off ~len
 ;;
 
-let combine (pa : 'a t) (pb : 'b t) : ('a * 'b) t =
+let ( <*> ) (pa : 'a t) (pb : 'b t) : ('a * 'b) t =
   let rec build_partial_b a (partial_b : 'b partial) =
     Partial
       { step =
@@ -156,4 +156,40 @@ let combine (pa : 'a t) (pb : 'b t) : ('a * 'b) t =
   }
 ;;
 
-let ( <*> ) = combine
+let ( <* ) (pa : 'a t) (pb : 'b t) : 'a t =
+  let pab = pa <*> pb in
+  let rec step (partial : ('a * 'b) partial) input =
+    match partial.step input with
+    | Done (Error (msg, off)) -> Done (Error (msg, off))
+    | Done (Ok ((a, _), new_input)) -> Done (Ok (a, new_input))
+    | Partial partial ->
+      Partial { step = step partial; base_off = partial.base_off }
+  in
+  { step =
+      (fun input ->
+        match pab.step input with
+        | Done (Error (msg, off)) -> Done (Error (msg, off))
+        | Done (Ok ((a, _), new_input)) -> Done (Ok (a, new_input))
+        | Partial partial ->
+          Partial { step = step partial; base_off = partial.base_off })
+  }
+;;
+
+let ( *> ) (pa : 'a t) (pb : 'b t) : 'b t =
+  let pab = pa <*> pb in
+  let rec step (partial : ('a * 'b) partial) input =
+    match partial.step input with
+    | Done (Error (msg, off)) -> Done (Error (msg, off))
+    | Done (Ok ((_, b), new_input)) -> Done (Ok (b, new_input))
+    | Partial partial ->
+      Partial { step = step partial; base_off = partial.base_off }
+  in
+  { step =
+      (fun input ->
+        match pab.step input with
+        | Done (Error (msg, off)) -> Done (Error (msg, off))
+        | Done (Ok ((_, b), new_input)) -> Done (Ok (b, new_input))
+        | Partial partial ->
+          Partial { step = step partial; base_off = partial.base_off })
+  }
+;;

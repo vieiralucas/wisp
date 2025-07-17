@@ -3,6 +3,9 @@ open Wisp
 
 (* Test helpers *)
 let create_input str = Parser.input_of_string str
+let ( <*> ) = Parser.( <*> )
+let ( <* ) = Parser.( <* )
+let ( *> ) = Parser.( *> )
 
 let create_bigstring_input str =
   Parser.input_of_bigstring
@@ -135,7 +138,7 @@ let test_string () =
 
 let test_combine () =
   let test_combine_success () =
-    let parser = Parser.combine (Parser.char 'h') (Parser.char 'e') in
+    let parser = Parser.char 'h' <*> Parser.char 'e' in
     let input = create_input "hello" in
     let result = Parser.run parser input (fun () -> None) in
     match result with
@@ -149,7 +152,7 @@ let test_combine () =
     | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
   in
   let test_combine_first_failure () =
-    let parser = Parser.combine (Parser.char 'x') (Parser.char 'e') in
+    let parser = Parser.char 'x' <*> Parser.char 'e' in
     let input = create_input "hello" in
     let result = Parser.run parser input (fun () -> None) in
     match result with
@@ -158,7 +161,7 @@ let test_combine () =
       check string "combine first error message" "Expected 'x'" msg
   in
   let test_combine_second_failure () =
-    let parser = Parser.combine (Parser.char 'h') (Parser.char 'x') in
+    let parser = Parser.char 'h' <*> Parser.char 'x' in
     let input = create_input "hello" in
     let result = Parser.run parser input (fun () -> None) in
     match result with
@@ -387,7 +390,7 @@ let test_string_partial_streaming_no_more_input () =
 
 let test_combine_partial_first () =
   (* First parser is partial, then completed *)
-  let parser = Parser.combine (Parser.string "foo") (Parser.string "bar") in
+  let parser = Parser.string "foo" <*> Parser.string "bar" in
   let input = create_input "fo" in
   let chunks = ref [ "o"; "bar" ] in
   let get_more () =
@@ -411,7 +414,7 @@ let test_combine_partial_first () =
 
 let test_combine_partial_second () =
   (* Second parser is partial, then completed *)
-  let parser = Parser.combine (Parser.string "foo") (Parser.string "bar") in
+  let parser = Parser.string "foo" <*> Parser.string "bar" in
   let input = create_input "foo" in
   let chunks = ref [ "ba"; "r" ] in
   let get_more () =
@@ -435,7 +438,7 @@ let test_combine_partial_second () =
 
 let test_combine_partial_second_mismatch () =
   (* Second parser is partial, then fails *)
-  let parser = Parser.combine (Parser.string "foo") (Parser.string "bar") in
+  let parser = Parser.string "foo" <*> Parser.string "bar" in
   let input = create_input "foo" in
   let chunks = ref [ "baz" ] in
   let get_more () =
@@ -453,7 +456,7 @@ let test_combine_partial_second_mismatch () =
 
 let test_combine_partial_first_no_more_input () =
   (* First parser is partial, get_more returns None *)
-  let parser = Parser.combine (Parser.string "foo") (Parser.string "bar") in
+  let parser = Parser.string "foo" <*> Parser.string "bar" in
   let input = create_input "fo" in
   let get_more () = None in
   match Parser.run parser input get_more with
@@ -468,7 +471,7 @@ let test_combine_partial_first_no_more_input () =
 
 let test_combine_partial_second_no_more_input () =
   (* Second parser is partial, get_more returns None *)
-  let parser = Parser.combine (Parser.string "foo") (Parser.string "bar") in
+  let parser = Parser.string "foo" <*> Parser.string "bar" in
   let input = create_input "foo" in
   let chunks = ref [ "ba" ] in
   let get_more () =
@@ -507,7 +510,7 @@ let test_string_partial_mismatch () =
 
 let test_combine_partial_a_error () =
   (* Test the uncovered branch where partial_a.step returns Done (Error ...) *)
-  let parser = Parser.combine (Parser.string "foo") (Parser.string "bar") in
+  let parser = Parser.string "foo" <*> Parser.string "bar" in
   let input = create_input "fo" in
   let chunks = ref [ "x" ] in
   (* This will cause the first parser to fail *)
@@ -526,7 +529,7 @@ let test_combine_partial_a_error () =
 
 let test_combine_partial_a_pb_error () =
   (* Test the uncovered branch where pb.step returns Done (Error ...) in build_partial_a *)
-  let parser = Parser.combine (Parser.string "foo") (Parser.string "bar") in
+  let parser = Parser.string "foo" <*> Parser.string "bar" in
   let input = create_input "fo" in
   let chunks = ref [ "o"; "baz" ] in
   (* First parser succeeds, second fails *)
@@ -545,7 +548,7 @@ let test_combine_partial_a_pb_error () =
 
 let test_combine_partial_a_pb_success () =
   (* Test the uncovered branch where pb.step returns Done (Ok ...) in build_partial_a *)
-  let parser = Parser.combine (Parser.string "foo") (Parser.string "bar") in
+  let parser = Parser.string "foo" <*> Parser.string "bar" in
   let input = create_input "fo" in
   let chunks = ref [ "o"; "bar" ] in
   (* Both parsers succeed *)
@@ -570,7 +573,7 @@ let test_combine_partial_a_pb_success () =
 
 let test_combine_partial_a_recursive () =
   (* Test the uncovered branch where partial_a.step returns Partial in build_partial_a *)
-  let parser = Parser.combine (Parser.string "foobar") (Parser.string "baz") in
+  let parser = Parser.string "foobar" <*> Parser.string "baz" in
   let input = create_input "fo" in
   let chunks = ref [ "ob"; "ar"; "baz" ] in
   (* First parser needs multiple chunks *)
@@ -596,9 +599,7 @@ let test_combine_partial_a_recursive () =
 let test_combine_partial_a_pb_done_error () =
   (* Test the uncovered branch where pb.step returns Done (Error ...) in build_partial_a *)
   (* Create a scenario where the first parser definitely triggers build_partial_a *)
-  let parser =
-    Parser.combine (Parser.string "foobarbazqux") (Parser.string "hello")
-  in
+  let parser = Parser.string "foobarbazqux" <*> Parser.string "hello" in
   let input = create_input "foo" in
   (* Very partial input for a long string *)
   let chunks = ref [ "bar"; "baz"; "quxwrong" ] in
@@ -619,9 +620,7 @@ let test_combine_partial_a_pb_done_error () =
 let test_combine_partial_a_pb_done_success () =
   (* Test the uncovered branch where pb.step returns Done (Ok ...) in build_partial_a *)
   (* Create a scenario where the first parser definitely triggers build_partial_a *)
-  let parser =
-    Parser.combine (Parser.string "foobarbazqux") (Parser.string "hello")
-  in
+  let parser = Parser.string "foobarbazqux" <*> Parser.string "hello" in
   let input = create_input "foo" in
   (* Very partial input for a long string *)
   let chunks = ref [ "bar"; "baz"; "quxhello" ] in
@@ -646,6 +645,302 @@ let test_combine_partial_a_pb_done_success () =
       ""
       (Parser.remaining_string remaining)
   | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_combine_operator () =
+  (* Test <*> operator - combines two parsers and returns both results *)
+  let parser = Parser.char 'h' <*> Parser.char 'e' in
+  let input = create_input "hello" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok ((a, b), remaining) ->
+    check char "combine operator first" 'h' a;
+    check char "combine operator second" 'e' b;
+    check
+      string
+      "combine operator remaining"
+      "llo"
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_left_operator () =
+  (* Test <* operator - runs two parsers but returns only the left result *)
+  let parser = Parser.string "hello" <* Parser.char ' ' in
+  let input = create_input "hello world" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok (result, remaining) ->
+    check string "left operator result" "hello" result;
+    check
+      string
+      "left operator remaining"
+      "world"
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_right_operator () =
+  (* Test *> operator - runs two parsers but returns only the right result *)
+  let parser = Parser.string "hello" *> Parser.string "world" in
+  let input = create_input "helloworld" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok (result, remaining) ->
+    check string "right operator result" "world" result;
+    check
+      string
+      "right operator remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_combine_operator_failure () =
+  (* Test <*> operator with first parser failure *)
+  let parser = Parser.char 'x' <*> Parser.char 'e' in
+  let input = create_input "hello" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) -> check string "combine operator failure" "Expected 'x'" msg
+;;
+
+let test_left_operator_failure () =
+  (* Test <* operator with right parser failure *)
+  let parser = Parser.string "hello" <* Parser.char 'x' in
+  let input = create_input "hello world" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) -> check string "left operator failure" "Expected 'x'" msg
+;;
+
+let test_right_operator_failure () =
+  (* Test *> operator with left parser failure *)
+  let parser = Parser.string "wrong" *> Parser.string "world" in
+  let input = create_input "hello world" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check string "right operator failure" "Expected 'wrong'" msg
+;;
+
+let test_combine_operator_partial () =
+  (* Test <*> operator with partial input *)
+  let parser = Parser.string "hello" <*> Parser.string "world" in
+  let input = create_input "hello" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check string "combine operator partial" "Not enough input" msg
+;;
+
+let test_left_operator_partial () =
+  (* Test <* operator with partial input *)
+  let parser = Parser.string "hello" <* Parser.string "world" in
+  let input = create_input "hello" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check string "left operator partial" "Not enough input" msg
+;;
+
+let test_right_operator_partial () =
+  (* Test *> operator with partial input *)
+  let parser = Parser.string "hello" *> Parser.string "world" in
+  let input = create_input "hello" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check string "right operator partial" "Not enough input" msg
+;;
+
+let test_combine_operator_streaming () =
+  (* Test <*> operator with streaming input *)
+  let parser = Parser.string "hello" <*> Parser.string "world" in
+  let input = create_input "hel" in
+  let chunks = ref [ "lo"; "world" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok ((a, b), remaining) ->
+    check string "combine operator streaming first" "hello" a;
+    check string "combine operator streaming second" "world" b;
+    check
+      string
+      "combine operator streaming remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_left_operator_streaming () =
+  (* Test <* operator with streaming input *)
+  let parser = Parser.string "hello" <* Parser.string "world" in
+  let input = create_input "hel" in
+  let chunks = ref [ "lo"; "world" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok (result, remaining) ->
+    check string "left operator streaming result" "hello" result;
+    check
+      string
+      "left operator streaming remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_right_operator_streaming () =
+  (* Test *> operator with streaming input *)
+  let parser = Parser.string "hello" *> Parser.string "world" in
+  let input = create_input "hel" in
+  let chunks = ref [ "lo"; "world" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok (result, remaining) ->
+    check string "right operator streaming result" "world" result;
+    check
+      string
+      "right operator streaming remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_operator_chaining () =
+  (* Test chaining multiple operators *)
+  let parser =
+    Parser.string "GET"
+    <*> (Parser.char ' ' *> Parser.string "/api" <* Parser.char ' ')
+    <*> Parser.string "HTTP/1.1"
+  in
+  let input = create_input "GET /api HTTP/1.1" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok (((method_, path), version), remaining) ->
+    check string "operator chaining method" "GET" method_;
+    check string "operator chaining path" "/api" path;
+    check string "operator chaining version" "HTTP/1.1" version;
+    check
+      string
+      "operator chaining remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_operator_precedence () =
+  (* Test operator precedence - <*> should bind tighter than <* and *> *)
+  let parser = Parser.char 'a' <*> Parser.char 'b' <* Parser.char 'c' in
+  let input = create_input "abc" in
+  match Parser.run parser input (fun () -> None) with
+  | Ok (result, remaining) ->
+    check (pair char char) "operator precedence result" ('a', 'b') result;
+    check
+      string
+      "operator precedence remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_left_operator_recursive_partial () =
+  (* This test triggers the recursive partial case in <* *)
+  let parser = Parser.string "foo" <* Parser.string "barbaz" in
+  let input = create_input "foo" in
+  let chunks = ref [ "bar"; "baz" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok (result, remaining) ->
+    check string "left operator recursive partial result" "foo" result;
+    check
+      string
+      "left operator recursive partial remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_left_operator_recursive_partial_error () =
+  (* This test triggers the recursive partial case in <* with error *)
+  let parser = Parser.string "foo" <* Parser.string "barbaz" in
+  let input = create_input "foo" in
+  let chunks = ref [ "bar"; "wrong" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check string "left operator recursive partial error" "Expected 'barbaz'" msg
+;;
+
+let test_right_operator_recursive_partial () =
+  (* This test triggers the recursive partial case in *> *)
+  let parser = Parser.string "foo" *> Parser.string "barbaz" in
+  let input = create_input "foo" in
+  let chunks = ref [ "bar"; "baz" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok (result, remaining) ->
+    check string "right operator recursive partial result" "barbaz" result;
+    check
+      string
+      "right operator recursive partial remaining"
+      ""
+      (Parser.remaining_string remaining)
+  | Error (msg, _) -> fail ("Expected success but got error: " ^ msg)
+;;
+
+let test_right_operator_recursive_partial_error () =
+  (* This test triggers the recursive partial case in *> with error *)
+  let parser = Parser.string "foo" *> Parser.string "barbaz" in
+  let input = create_input "foo" in
+  let chunks = ref [ "bar"; "wrong" ] in
+  let get_more () =
+    match !chunks with
+    | [] -> None
+    | hd :: tl ->
+      chunks := tl;
+      Some (create_input hd)
+  in
+  match Parser.run parser input get_more with
+  | Ok _ -> fail "Expected failure but got success"
+  | Error (msg, _) ->
+    check
+      string
+      "right operator recursive partial error"
+      "Expected 'barbaz'"
+      msg
 ;;
 
 (* Test suite *)
@@ -722,6 +1017,71 @@ let () =
             "combine partial a pb done success"
             `Quick
             test_combine_partial_a_pb_done_success
+        ] )
+    ; ( "http first line"
+      , [ test_case "http first line" `Quick (fun () ->
+            (* Example HTTP request line: "GET / HTTP/1.1\r\n" *)
+            let parser =
+              Parser.string "GET"
+              <*> (Parser.char ' ' *> Parser.string "/" <* Parser.char ' ')
+              <*> (Parser.string "HTTP/1.1" <* Parser.string "\r\n")
+            in
+            let input = create_input "GET / HTTP/1.1\r\n" in
+            match Parser.run parser input (fun () -> None) with
+            | Ok (((method_, path), version), remaining) ->
+              (* Check the parsed values *)
+              check string "method" "GET" method_;
+              check string "path" "/" path;
+              check string "version" "HTTP/1.1" version;
+              check string "remaining" "" (Parser.remaining_string remaining)
+            | Error (msg, _) -> fail ("Expected success but got error: " ^ msg))
+        ] )
+    ; ( "parser_operators"
+      , [ test_case "combine operator" `Quick test_combine_operator
+        ; test_case "left operator" `Quick test_left_operator
+        ; test_case "right operator" `Quick test_right_operator
+        ; test_case
+            "combine operator failure"
+            `Quick
+            test_combine_operator_failure
+        ; test_case "left operator failure" `Quick test_left_operator_failure
+        ; test_case "right operator failure" `Quick test_right_operator_failure
+        ; test_case
+            "combine operator partial"
+            `Quick
+            test_combine_operator_partial
+        ; test_case "left operator partial" `Quick test_left_operator_partial
+        ; test_case "right operator partial" `Quick test_right_operator_partial
+        ; test_case
+            "combine operator streaming"
+            `Quick
+            test_combine_operator_streaming
+        ; test_case
+            "left operator streaming"
+            `Quick
+            test_left_operator_streaming
+        ; test_case
+            "right operator streaming"
+            `Quick
+            test_right_operator_streaming
+        ; test_case
+            "left operator recursive partial"
+            `Quick
+            test_left_operator_recursive_partial
+        ; test_case
+            "left operator recursive partial error"
+            `Quick
+            test_left_operator_recursive_partial_error
+        ; test_case
+            "right operator recursive partial"
+            `Quick
+            test_right_operator_recursive_partial
+        ; test_case
+            "right operator recursive partial error"
+            `Quick
+            test_right_operator_recursive_partial_error
+        ; test_case "operator chaining" `Quick test_operator_chaining
+        ; test_case "operator precedence" `Quick test_operator_precedence
         ] )
     ]
 ;;
