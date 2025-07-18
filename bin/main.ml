@@ -1,28 +1,21 @@
-let handler socket _client_addr =
-  let response =
-    Printf.sprintf
-      "HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s"
-      (String.length "Hello World!")
-      "Hello World!"
-  in
-  Eio.Flow.copy_string response socket;
-  Eio.Flow.close socket
-;;
-
-let rec server sw listener =
-  let socket, client_addr = Eio.Net.accept ~sw listener in
-  Eio.Fiber.fork ~sw (fun () -> handler socket client_addr);
-  server sw listener
-;;
+let handle_list_notes _req = Wisp.Response.text "TODO: List notes"
+let handle_create_note _req = Wisp.Response.text "TODO: Create note"
+let handle_get_note _req = Wisp.Response.text "TODO: Get note"
+let handle_update_note _req = Wisp.Response.text "TODO: Update note"
+let handle_delete_note _req = Wisp.Response.text "TODO: Delete note"
 
 let main env sw =
-  let listen_addr = `Tcp (Eio.Net.Ipaddr.V4.loopback, 8080) in
   let net = Eio.Stdenv.net env in
-  let listener =
-    Eio.Net.listen ~reuse_addr:true ~backlog:10 ~sw net listen_addr
-  in
-  Printf.printf "Listening on 127.0.0.1:8080\n%!";
-  server sw listener
+  Wisp.Server.listen
+    ~net
+    ~sw
+    ~port:8080
+    [ Wisp.Route.get "/notes" handle_list_notes
+    ; Wisp.Route.post "/notes" handle_create_note
+    ; Wisp.Route.get "/notes/:id" handle_get_note
+    ; Wisp.Route.put "/notes/:id" handle_update_note
+    ; Wisp.Route.delete "/notes/:id" handle_delete_note
+    ]
 ;;
 
 let () = Eio_main.run @@ fun env -> Eio.Switch.run @@ fun sw -> main env sw

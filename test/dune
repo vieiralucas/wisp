@@ -3,5 +3,5 @@
  (libraries wisp alcotest))
 
 (test
- (name test_http)
+ (name test_request)
  (libraries wisp alcotest))

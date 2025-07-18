@@ -187,28 +187,26 @@ module Headers = struct
   ;;
 end
 
-module Request = struct
-  type t =
-    { meth : Method.t
-    ; headers : Headers.t
-    }
-  [@@deriving show, eq]
+type t =
+  { meth : Method.t
+  ; headers : Headers.t
+  }
+[@@deriving show, eq]
 
-  let parser : t Parser.t =
-    let open Parser in
-    RequestLine.parser
-    <* string "\r\n"
-    <*> Headers.parser
-    |> map (fun (req, headers) -> { meth = RequestLine.meth req; headers })
-  ;;
+let parser : t Parser.t =
+  let open Parser in
+  RequestLine.parser
+  <* string "\r\n"
+  <*> Headers.parser
+  |> map (fun (req, headers) -> { meth = RequestLine.meth req; headers })
+;;
 
-  let meth { meth; _ } = meth
+let meth { meth; _ } = meth
 
-  let get_header t key =
-    List.find_opt
-      (fun (k, _) ->
-         String.equal (String.lowercase_ascii k) (String.lowercase_ascii key))
-      t.headers
-    |> Option.map snd
-  ;;
-end
+let get_header t key =
+  List.find_opt
+    (fun (k, _) ->
+       String.equal (String.lowercase_ascii k) (String.lowercase_ascii key))
+    t.headers
+  |> Option.map snd
+;;

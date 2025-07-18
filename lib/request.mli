@@ -12,10 +12,8 @@ module Method : sig
   [@@deriving show, eq]
 end
 
-module Request : sig
-  type t
+type t
 
-  val parser : t Parser.t
-  val meth : t -> Method.t
-  val get_header : t -> string -> string option
-end
+val parser : t Parser.t
+val meth : t -> Method.t
+val get_header : t -> string -> string option
