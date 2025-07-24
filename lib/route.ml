@@ -1,29 +1,40 @@
 type t =
-  { _meth : Request.Method.t
-  ; _path : string
-  ; _handler : Handler.t
+  { meth : Request.Method.t
+  ; path : string
+  ; handler : Handler.t
   }
 
 let get path handler =
-  { _meth = Request.Method.GET; _path = path; _handler = handler }
+  { meth = Request.Method.GET; path = path; handler = handler }
 ;;
 
 let post path handler =
-  { _meth = Request.Method.POST; _path = path; _handler = handler }
+  { meth = Request.Method.POST; path = path; handler = handler }
 ;;
 
 let put path handler =
-  { _meth = Request.Method.PUT; _path = path; _handler = handler }
+  { meth = Request.Method.PUT; path = path; handler = handler }
 ;;
 
 let delete path handler =
-  { _meth = Request.Method.DELETE; _path = path; _handler = handler }
+  { meth = Request.Method.DELETE; path = path; handler = handler }
 ;;
 
 let patch path handler =
-  { _meth = Request.Method.PATCH; _path = path; _handler = handler }
+  { meth = Request.Method.PATCH; path = path; handler = handler }
 ;;
 
 let options path handler =
-  { _meth = Request.Method.OPTIONS; _path = path; _handler = handler }
+  { meth = Request.Method.OPTIONS; path = path; handler = handler }
+;;
+
+let match_request req routes =
+  let rec aux = function
+    | [] -> None
+    | route :: rest ->
+      if Request.meth req = route.meth && Request.path req = route.path
+      then Some route.handler
+      else aux rest
+  in
+  aux routes
 ;;

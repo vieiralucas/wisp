@@ -155,7 +155,7 @@ end
 module RequestLine = struct
   type t =
     { meth : Method.t
-    ; _target : RequestTarget.t
+    ; target : RequestTarget.t
     ; _version : Version.t
     }
   [@@deriving show, eq]
@@ -167,7 +167,7 @@ module RequestLine = struct
     <*> (RequestTarget.parser <* char ' ')
     <*> Version.parser
     |> map (fun ((meth, target), version) ->
-      { meth; _target = target; _version = version })
+      { meth; target; _version = version })
   ;;
 
   let meth { meth; _ } = meth
@@ -190,6 +190,7 @@ end
 type t =
   { meth : Method.t
   ; headers : Headers.t
+  ; target : RequestTarget.t
   }
 [@@deriving show, eq]
 
@@ -198,7 +199,8 @@ let parser : t Parser.t =
   RequestLine.parser
   <* string "\r\n"
   <*> Headers.parser
-  |> map (fun (req, headers) -> { meth = RequestLine.meth req; headers })
+  |> map (fun (req_line, headers) ->
+    { meth = RequestLine.meth req_line; headers; target = req_line.target })
 ;;
 
 let meth { meth; _ } = meth
@@ -209,4 +211,17 @@ let get_header t key =
        String.equal (String.lowercase_ascii k) (String.lowercase_ascii key))
     t.headers
   |> Option.map snd
+;;
+
+let path { target; _ } =
+  match target with
+  | RequestTarget.OriginForm path -> path
+  | RequestTarget.AbsoluteForm path -> path
+  | RequestTarget.AuthorityForm authority ->
+    let port_str = match authority.port with
+      | Some port -> Printf.sprintf ":%d" port
+      | None -> ""
+    in
+    Printf.sprintf "%s%s" authority.host port_str
+  | RequestTarget.AsteriskForm -> "*"
 ;;

@@ -6,3 +6,4 @@ val put : string -> Handler.t -> t
 val delete : string -> Handler.t -> t
 val patch : string -> Handler.t -> t
 val options : string -> Handler.t -> t
+val match_request : Request.t -> t list -> Handler.t option

@@ -4,7 +4,7 @@ let read_chunk socket =
   if n = 0 then "" else Cstruct.to_string (Cstruct.sub buf 0 n)
 ;;
 
-let handler socket _client_addr _routes =
+let handler socket _client_addr routes =
   match
     Parser.run Request.parser (Parser.input_of_string "") (fun () ->
       let chunk = read_chunk socket in
@@ -12,7 +12,18 @@ let handler socket _client_addr _routes =
       then None
       else Some (Parser.input_of_string chunk))
   with
-  | Parser.Ok _req -> failwith "rip"
+  | Parser.Ok (req, _) -> begin
+    match Route.match_request req routes with
+    | Some handler ->
+      let response = handler req in
+      let response_str = Response.to_string response in
+      Eio.Flow.copy_string response_str socket;
+      Eio.Flow.close socket
+    | None ->
+      let response_str = Response.to_string Response.not_found in
+      Eio.Flow.copy_string response_str socket;
+      Eio.Flow.close socket
+  end
   | Parser.Error (msg, _) ->
     Printf.eprintf "Parsing failed: %s\n%!" msg;
     Eio.Flow.close socket

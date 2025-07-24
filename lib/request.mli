@@ -17,3 +17,4 @@ type t
 val parser : t Parser.t
 val meth : t -> Method.t
 val get_header : t -> string -> string option
+val path : t -> string
