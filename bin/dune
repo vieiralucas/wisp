@@ -1,4 +1,4 @@
 (executable
- (public_name wisp)
+ (public_name notes)
  (name main)
  (libraries wisp eio_main))
